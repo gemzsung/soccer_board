@@ -276,12 +276,13 @@ export default function Home() {
     );
 
     // 포메이션에 포함되지 않는 포지션의 선수는 미배치 상태로 변경
-    const resetPlayers = (prev: PlayerRow[]) =>
-      prev.map((p) =>
-        p.assigned && !includedPositions.has(p.assigned as PositionId)
-          ? { ...p, assigned: "" as PlayerRow["assigned"] }
-          : p
-      );
+    const resetPlayers = (prev: PlayerRow[]): PlayerRow[] =>
+      prev.map((p) => {
+        if (p.assigned && !includedPositions.has(p.assigned as PositionId)) {
+          return { ...p, assigned: "" as const };
+        }
+        return p;
+      });
 
     setHomePlayers(resetPlayers);
     setAwayPlayers(resetPlayers);
