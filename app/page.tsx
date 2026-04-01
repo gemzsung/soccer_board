@@ -14,6 +14,7 @@ type Formation = "3-2-4-1" | "4-2-4" | "4-4-2" | "4-3-3";
 type Player = { id: string; name: string; number: number };
 type Slot = { id: string; x: number; y: number };
 type DragState = { playerId: string; fromSlotId?: string } | null;
+type SelectedSlot = { team: TeamKey; slotId: string } | null;
 
 const homePlayers: Player[] = [
   { id: "h1", name: "조현우", number: 1 }, { id: "h4", name: "김민재", number: 4 },
@@ -68,6 +69,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TeamKey>("home");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
+  const [selectedSlot, setSelectedSlot] = useState<SelectedSlot>(null);
 
   const homeSlots = useMemo(() => makeSlots("home", homeFormation), [homeFormation]);
   const awaySlots = useMemo(() => makeSlots("away", awayFormation), [awayFormation]);
@@ -103,13 +105,20 @@ export default function Home() {
     });
   };
 
+  const swapOrMoveWithinTeam = (team: TeamKey, fromSlotId: string, toSlotId: string) => {
+    const lineup = team === "home" ? homeLineup : awayLineup;
+    const fromPlayerId = lineup[fromSlotId];
+    if (!fromPlayerId) return;
+    assignToSlot(team, toSlotId, fromPlayerId, fromSlotId);
+  };
+
   const rosterFor = activeTab === "home" ? homePlayers : awayPlayers;
   const usedFor = activeTab === "home" ? homeUsed : awayUsed;
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background/60 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><span className="text-sm font-semibold">SB</span></div>
             <div>
@@ -117,12 +126,12 @@ export default function Home() {
               <p className="text-xs text-muted-foreground">데모: 대한민국 vs 레알 마드리드</p>
             </div>
           </div>
-          <Badge variant="secondary">인터랙션 데모</Badge>
+          <Badge variant="secondary" className="hidden sm:inline-flex">인터랙션 데모</Badge>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 gap-5 px-4 py-5 sm:px-6 lg:py-7">
-        <section className="flex w-full flex-col gap-4 lg:w-[340px] xl:w-[360px]">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-3 py-4 sm:px-6 lg:flex-row lg:gap-5 lg:py-7">
+        <section className="order-2 flex w-full flex-col gap-4 lg:order-1 lg:w-[340px] xl:w-[360px]">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">팀 / 포메이션</CardTitle>
@@ -169,7 +178,7 @@ export default function Home() {
                   <TabsTrigger value="home">홈팀</TabsTrigger>
                   <TabsTrigger value="away">원정팀</TabsTrigger>
                 </TabsList>
-                <TabsContent value={activeTab} className="mt-3 space-y-2">
+                <TabsContent value={activeTab} className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
                   {rosterFor.map((p) => (
                     <button
                       key={p.id}
@@ -202,42 +211,42 @@ export default function Home() {
                 </Select>
               </div>
               <div className="rounded-xl border bg-card/70 p-3">
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-4xl font-extrabold leading-none tracking-tight text-emerald-500">
+                    <span className="text-3xl font-extrabold leading-none tracking-tight text-emerald-500 sm:text-4xl">
                       {homeScore}
                     </span>
                     <div className="flex flex-col gap-1">
                       <button
-                        className="h-6 w-6 rounded border text-xs font-bold"
+                        className="h-7 w-7 rounded border text-sm font-bold sm:h-6 sm:w-6 sm:text-xs"
                         onClick={() => setHomeScore((v) => v + 1)}
                       >
                         +
                       </button>
                       <button
-                        className="h-6 w-6 rounded border text-xs font-bold"
+                        className="h-7 w-7 rounded border text-sm font-bold sm:h-6 sm:w-6 sm:text-xs"
                         onClick={() => setHomeScore((v) => Math.max(0, v - 1))}
                       >
                         -
                       </button>
                     </div>
                   </div>
-                  <span className="text-lg font-semibold text-muted-foreground">
+                  <span className="text-base font-semibold text-muted-foreground sm:text-lg">
                     vs
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-4xl font-extrabold leading-none tracking-tight text-sky-500">
+                    <span className="text-3xl font-extrabold leading-none tracking-tight text-sky-500 sm:text-4xl">
                       {awayScore}
                     </span>
                     <div className="flex flex-col gap-1">
                       <button
-                        className="h-6 w-6 rounded border text-xs font-bold"
+                        className="h-7 w-7 rounded border text-sm font-bold sm:h-6 sm:w-6 sm:text-xs"
                         onClick={() => setAwayScore((v) => v + 1)}
                       >
                         +
                       </button>
                       <button
-                        className="h-6 w-6 rounded border text-xs font-bold"
+                        className="h-7 w-7 rounded border text-sm font-bold sm:h-6 sm:w-6 sm:text-xs"
                         onClick={() => setAwayScore((v) => Math.max(0, v - 1))}
                       >
                         -
@@ -252,22 +261,24 @@ export default function Home() {
           </Card>
         </section>
 
-        <section className="flex flex-1 flex-col gap-4">
+        <section className="order-1 flex flex-1 flex-col gap-4 lg:order-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">작전판</CardTitle>
                 <Badge variant="outline">포지션: {mode === "auto" ? "자동" : "수동"}</Badge>
               </div>
-              <CardDescription>드래그해서 슬롯 위에 놓으면 선수 배치/교체가 됩니다.</CardDescription>
+              <CardDescription>
+                데스크톱: 드래그해서 슬롯 위에 놓으면 배치/교체됩니다. 모바일: 슬롯을 한 번 탭해 선택 후 다른 슬롯을 탭하면 교차됩니다.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="pitch-stadium-bg relative mx-auto h-[560px] w-full rounded-[28px] border border-emerald-200/35 p-3 pitch-grid-bg shadow-[0_0_90px_rgba(16,185,129,0.14)]">
-                <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
+              <div className="pitch-stadium-bg relative mx-auto h-[62vh] min-h-[360px] w-full rounded-[22px] border border-emerald-200/35 p-2 sm:h-[560px] sm:rounded-[28px] sm:p-3 pitch-grid-bg shadow-[0_0_90px_rgba(16,185,129,0.14)]">
+                <div className="absolute left-2 top-2 z-10 flex items-center gap-1 sm:left-4 sm:top-4 sm:gap-2">
                   <Badge className="bg-emerald-500/80 text-emerald-950">홈 {homeFormation}</Badge>
                   <Badge className="bg-sky-400/80 text-sky-950">원정 {awayFormation}</Badge>
                 </div>
-                <div className="absolute right-4 top-4 z-10">
+                <div className="absolute right-2 top-2 z-10 sm:right-4 sm:top-4">
                   <Badge variant="secondary">Q{quarter} | 홈 {homeScore} : {awayScore} 원정</Badge>
                 </div>
                 <div className="pointer-events-none absolute inset-3">
@@ -284,11 +295,12 @@ export default function Home() {
                   const lineup = team === "home" ? homeLineup : awayLineup;
                   const playerId = lineup[slot.id];
                   const player = playerId ? playerMap.get(playerId) : null;
+                  const isSelected = selectedSlot?.team === team && selectedSlot?.slotId === slot.id;
                   return (
                     <button
                       key={slot.id}
                       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border px-2 py-1 text-[10px] ${team === "home" ? "border-emerald-100 bg-emerald-400/80 text-emerald-950" : "border-sky-100 bg-sky-400/80 text-sky-950"}`}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border px-1.5 py-1 text-[10px] sm:px-2 ${team === "home" ? "border-emerald-100 bg-emerald-400/80 text-emerald-950" : "border-sky-100 bg-sky-400/80 text-sky-950"} ${isSelected ? "ring-2 ring-white/90 ring-offset-2 ring-offset-emerald-950" : ""}`}
                       draggable={Boolean(player)}
                       onDragStart={() => player && setDragState({ playerId: player.id, fromSlotId: slot.id })}
                       onDragOver={(e) => e.preventDefault()}
@@ -298,14 +310,46 @@ export default function Home() {
                         assignToSlot(team, slot.id, dragState.playerId, dragState.fromSlotId);
                         setDragState(null);
                         setSelectedPlayerId(null);
+                        setSelectedSlot(null);
                       }}
                       onClick={() => {
-                        if (!selectedPlayerId) return;
-                        assignToSlot(team, slot.id, selectedPlayerId);
-                        setSelectedPlayerId(null);
+                        // 1) "선수 선택 → 슬롯 클릭" 배치
+                        if (selectedPlayerId) {
+                          assignToSlot(team, slot.id, selectedPlayerId);
+                          setSelectedPlayerId(null);
+                          setSelectedSlot(null);
+                          return;
+                        }
+
+                        // 2) 모바일 친화: "슬롯 선택 → 슬롯 선택" 교차/이동
+                        if (!selectedSlot) {
+                          if (!playerId) return;
+                          setSelectedSlot({ team, slotId: slot.id });
+                          return;
+                        }
+
+                        // 같은 슬롯 다시 누르면 해제
+                        if (selectedSlot.team === team && selectedSlot.slotId === slot.id) {
+                          setSelectedSlot(null);
+                          return;
+                        }
+
+                        // 팀이 다르면(홈↔원정) 교차 불가: 선택만 해제
+                        if (selectedSlot.team !== team) {
+                          setSelectedSlot(null);
+                          return;
+                        }
+
+                        swapOrMoveWithinTeam(team, selectedSlot.slotId, slot.id);
+                        setSelectedSlot(null);
                       }}
                     >
-                      {player ? `${player.number} ${player.name}` : "빈 슬롯"}
+                      {player ? (
+                        <>
+                          <span className="sm:hidden">{player.number}</span>
+                          <span className="hidden sm:inline">{player.number} {player.name}</span>
+                        </>
+                      ) : "빈 슬롯"}
                     </button>
                   );
                 })}
