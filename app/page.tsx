@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -185,7 +185,8 @@ export default function Home() {
   const [awayPlayers, setAwayPlayers] = useState<PlayerRow[]>(initialAwayPlayers);
   const [customPositions, setCustomPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [draggedSlot, setDraggedSlot] = useState<{ team: TeamKey; slotId: PositionId } | null>(null);
-  const [pitchRef, setPitchRef] = useState<HTMLDivElement | null>(null);
+  const [homePitchRef, setHomePitchRef] = useState<HTMLDivElement | null>(null);
+  const [awayPitchRef, setAwayPitchRef] = useState<HTMLDivElement | null>(null);
 
   const homeRows = formationLabelRows(homeFormation);
   const awayRows = formationLabelRows(awayFormation);
@@ -197,21 +198,24 @@ export default function Home() {
     return slotMeta[position]?.role ?? position;
   };
 
-  const handleDragStart = (team: TeamKey, slotId: PositionId) => {
+  const handleDragStart = (team: TeamKey, slotId: PositionId, e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
     setDraggedSlot({ team, slotId });
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!draggedSlot || !pitchRef) return;
+  const updateDraggedSlot = (e: React.MouseEvent<HTMLDivElement>, team: TeamKey) => {
+    if (!draggedSlot || draggedSlot.team !== team) return;
+    const pitch = team === "home" ? homePitchRef : awayPitchRef;
+    if (!pitch) return;
 
-    const rect = pitchRef.getBoundingClientRect();
+    const rect = pitch.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
     const key = `${draggedSlot.team}-${draggedSlot.slotId}`;
     const newPos = Math.max(0, Math.min(100, x));
     const newY = Math.max(0, Math.min(100, y));
-    
+
     setCustomPositions((prev) => {
       const updated = new Map(prev);
       updated.set(key, { x: newPos, y: newY });
@@ -219,9 +223,11 @@ export default function Home() {
     });
   };
 
-  const handleDragEnd = () => {
-    setDraggedSlot(null);
-  };
+  useEffect(() => {
+    const onMouseUp = () => setDraggedSlot(null);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => window.removeEventListener("mouseup", onMouseUp);
+  }, []);
 
   const getSlotPosition = (team: TeamKey, slot: PositionSlot) => {
     const key = `${team}-${slot.id}`;
@@ -427,13 +433,13 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  <div className="pitch-vertical-home-bg relative mx-auto aspect-[9/14] w-full max-w-[440px] rounded-[24px] border border-emerald-200/35 p-2 sm:p-3 shadow-[0_0_90px_rgba(16,185,129,0.14)]" ref={setPitchRef} onMouseMove={handleMouseMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}>
+                  <div className="pitch-vertical-home-bg relative mx-auto aspect-[9/14] w-full max-w-[440px] rounded-[24px] border border-emerald-200/35 p-2 sm:p-3 shadow-[0_0_90px_rgba(16,185,129,0.14)] select-none" ref={setHomePitchRef} onMouseMove={(e) => updateDraggedSlot(e, "home")}>
                     {homeSlots.map((slot) => {
                       const player = playerByAssigned("home", slot.id);
                       const active = Boolean(player) && slot.inFormation;
                       const pos = getSlotPosition("home", slot);
                       return (
-                        <div key={`home-${slot.id}`} style={{ left: `${pos.x}%`, top: `${pos.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-move" title={player?.name ?? "미배치"} onMouseDown={() => handleDragStart("home", slot.id)}>
+                        <div key={`home-${slot.id}`} style={{ left: `${pos.x}%`, top: `${pos.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-move select-none" title={player?.name ?? "미배치"} onMouseDown={(e) => handleDragStart("home", slot.id, e)} onDragStart={(e) => e.preventDefault()}>
                           <div className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold shadow-[0_7px_14px_rgba(0,0,0,0.35)] ${
                             getIconClass("home", slot, active)
                           }`}>
@@ -460,7 +466,7 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  <div className="pitch-vertical-away-bg relative mx-auto aspect-[9/14] w-full max-w-[440px] rounded-[24px] border border-sky-200/35 p-2 sm:p-3 shadow-[0_0_90px_rgba(56,189,248,0.14)]" ref={setPitchRef} onMouseMove={handleMouseMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}>
+                  <div className="pitch-vertical-away-bg relative mx-auto aspect-[9/14] w-full max-w-[440px] rounded-[24px] border border-sky-200/35 p-2 sm:p-3 shadow-[0_0_90px_rgba(56,189,248,0.14)] select-none" ref={setAwayPitchRef} onMouseMove={(e) => updateDraggedSlot(e, "away")}>
                     <div className="absolute right-3 top-3 z-10">
                       <Badge variant="secondary">{mode === "auto" ? "자동 배치 기준" : "수동 배치 기준"}</Badge>
                     </div>
@@ -469,7 +475,7 @@ export default function Home() {
                       const active = Boolean(player) && slot.inFormation;
                       const pos = getSlotPosition("away", slot);
                       return (
-                        <div key={`away-${slot.id}`} style={{ left: `${pos.x}%`, top: `${pos.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-move" title={player?.name ?? "미배치"} onMouseDown={() => handleDragStart("away", slot.id)}>
+                        <div key={`away-${slot.id}`} style={{ left: `${pos.x}%`, top: `${pos.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2 text-center cursor-move select-none" title={player?.name ?? "미배치"} onMouseDown={(e) => handleDragStart("away", slot.id, e)} onDragStart={(e) => e.preventDefault()}>
                           <div className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold shadow-[0_7px_14px_rgba(0,0,0,0.35)] ${
                             getIconClass("away", slot, active)
                           }`}>
