@@ -1,346 +1,337 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+
+type TeamKey = "home" | "away";
+type Mode = "auto" | "manual";
+type Formation = "3-2-4-1" | "4-2-4" | "4-4-2" | "4-3-3";
+type Player = { id: string; name: string; number: number };
+type Slot = { id: string; x: number; y: number };
+type DragState = { playerId: string; fromSlotId?: string } | null;
+
+const homePlayers: Player[] = [
+  { id: "h1", name: "조현우", number: 1 }, { id: "h4", name: "김민재", number: 4 },
+  { id: "h19", name: "김영권", number: 19 }, { id: "h3", name: "김진수", number: 3 },
+  { id: "h23", name: "김태환", number: 23 }, { id: "h6", name: "황인범", number: 6 },
+  { id: "h10", name: "이재성", number: 10 }, { id: "h7", name: "손흥민", number: 7 },
+  { id: "h18", name: "이강인", number: 18 }, { id: "h11", name: "황희찬", number: 11 },
+  { id: "h9", name: "조규성", number: 9 },
+];
+
+const awayPlayers: Player[] = [
+  { id: "a1", name: "티보 쿠르투아", number: 1 }, { id: "a2", name: "다니 카르바할", number: 2 },
+  { id: "a3", name: "에데르 밀리탕", number: 3 }, { id: "a4", name: "다비드 알라바", number: 4 },
+  { id: "a23", name: "페를랑 멘디", number: 23 }, { id: "a18", name: "오렐리앵 추아메니", number: 18 },
+  { id: "a15", name: "페데리코 발베르데", number: 15 }, { id: "a5", name: "주드 벨링엄", number: 5 },
+  { id: "a7", name: "비니시우스 주니오르", number: 7 }, { id: "a9", name: "킬리안 음바페", number: 9 },
+  { id: "a11", name: "호드리구", number: 11 },
+];
+
+const formationRows: Record<Formation, number[]> = {
+  "3-2-4-1": [1, 3, 2, 4, 1],
+  "4-2-4": [1, 4, 2, 4],
+  "4-4-2": [1, 4, 4, 2],
+  "4-3-3": [1, 4, 3, 3],
+};
+
+function makeSlots(side: TeamKey, formation: Formation): Slot[] {
+  const rows = formationRows[formation];
+  const xBase = side === "home" ? [16, 26, 36, 46, 56, 66] : [84, 74, 64, 54, 44, 34];
+  const pitchRows = rows.map((count, idx) => ({ count, x: xBase[idx] ?? (side === "home" ? 66 : 34) }));
+  return pitchRows.flatMap((row, rowIndex) => {
+    const gap = 72 / (row.count + 1);
+    return Array.from({ length: row.count }, (_, i) => ({
+      id: `${side}-${rowIndex}-${i}`,
+      x: row.x,
+      y: 14 + gap * (i + 1),
+    }));
+  });
+}
+
+function seedLineup(slots: Slot[], players: Player[]) {
+  return Object.fromEntries(slots.map((slot, idx) => [slot.id, players[idx]?.id ?? null])) as Record<string, string | null>;
+}
 
 export default function Home() {
+  const [quarter, setQuarter] = useState("2");
+  const [homeFormation, setHomeFormation] = useState<Formation>("3-2-4-1");
+  const [awayFormation, setAwayFormation] = useState<Formation>("4-2-4");
+  const [mode, setMode] = useState<Mode>("auto");
+  const [homeScore, setHomeScore] = useState(1);
+  const [awayScore, setAwayScore] = useState(0);
+  const [activeTab, setActiveTab] = useState<TeamKey>("home");
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState>(null);
+
+  const homeSlots = useMemo(() => makeSlots("home", homeFormation), [homeFormation]);
+  const awaySlots = useMemo(() => makeSlots("away", awayFormation), [awayFormation]);
+  const [homeLineup, setHomeLineup] = useState<Record<string, string | null>>(() => seedLineup(makeSlots("home", "3-2-4-1"), homePlayers));
+  const [awayLineup, setAwayLineup] = useState<Record<string, string | null>>(() => seedLineup(makeSlots("away", "4-2-4"), awayPlayers));
+
+  const playerMap = useMemo(() => new Map([...homePlayers, ...awayPlayers].map((p) => [p.id, p])), []);
+  const homeUsed = useMemo(() => new Set(Object.values(homeLineup).filter(Boolean) as string[]), [homeLineup]);
+  const awayUsed = useMemo(() => new Set(Object.values(awayLineup).filter(Boolean) as string[]), [awayLineup]);
+
+  const changeFormation = (team: TeamKey, value: Formation) => {
+    if (team === "home") {
+      const slots = makeSlots("home", value);
+      setHomeFormation(value);
+      setHomeLineup(seedLineup(slots, homePlayers));
+    } else {
+      const slots = makeSlots("away", value);
+      setAwayFormation(value);
+      setAwayLineup(seedLineup(slots, awayPlayers));
+    }
+  };
+
+  const assignToSlot = (team: TeamKey, slotId: string, playerId: string, fromSlotId?: string) => {
+    const setLineup = team === "home" ? setHomeLineup : setAwayLineup;
+    setLineup((prev) => {
+      const next = { ...prev };
+      const targetCurrent = next[slotId];
+      if (fromSlotId && fromSlotId in next) {
+        next[fromSlotId] = targetCurrent ?? null;
+      }
+      next[slotId] = playerId;
+      return next;
+    });
+  };
+
+  const rosterFor = activeTab === "home" ? homePlayers : awayPlayers;
+  const usedFor = activeTab === "home" ? homeUsed : awayUsed;
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background/60 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <span className="text-sm font-semibold tracking-tight">SB</span>
-            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><span className="text-sm font-semibold">SB</span></div>
             <div>
-              <h1 className="text-lg font-semibold tracking-tight">
-                조기 축구 작전판 스코어보드
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                두 팀의 포메이션, 선수, 쿼터별 포지션을 한눈에 관리하세요.
-              </p>
+              <h1 className="text-lg font-semibold tracking-tight">조기 축구 작전판 스코어보드</h1>
+              <p className="text-xs text-muted-foreground">데모: 대한민국 vs 레알 마드리드</p>
             </div>
           </div>
-          <nav className="hidden items-center gap-3 sm:flex">
-            <Badge variant="secondary">기본 뼈대</Badge>
-            <Dialog>
-              <DialogTrigger render={<Button variant="outline" size="sm" />}>
-                경기 설정
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>경기 설정</DialogTitle>
-                  <DialogDescription>
-                    현재는 UI 뼈대이며, 이후 저장/불러오기 기능을 붙일 수 있습니다.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="matchName">경기 이름</Label>
-                    <Input id="matchName" placeholder="예) 일요조기 A조 vs B조" />
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label>현재 쿼터</Label>
-                      <Select defaultValue="1">
-                        <SelectTrigger>
-                          <SelectValue placeholder="선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1쿼터</SelectItem>
-                          <SelectItem value="2">2쿼터</SelectItem>
-                          <SelectItem value="3">3쿼터</SelectItem>
-                          <SelectItem value="4">4쿼터</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="duration">쿼터 시간(분)</Label>
-                      <Input id="duration" inputMode="numeric" placeholder="예) 25" />
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline">취소</Button>
-                    <Button>저장(예정)</Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </nav>
+          <Badge variant="secondary">인터랙션 데모</Badge>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 gap-6 px-4 py-6 sm:px-6 lg:py-8">
-        {/* 좌측: 팀/포메이션/선수 관리 패널 */}
-        <section className="flex w-full flex-col gap-4 sm:w-80">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 gap-5 px-4 py-5 sm:px-6 lg:py-7">
+        <section className="flex w-full flex-col gap-4 lg:w-[340px] xl:w-[360px]">
           <Card>
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-base">팀 &amp; 포메이션</CardTitle>
-              <CardDescription>
-                가입한 사용자가 팀 구성과 전략을 저장/수정할 수 있도록 확장할 예정입니다.
-              </CardDescription>
+            <CardHeader>
+              <CardTitle className="text-base">팀 / 포메이션</CardTitle>
+              <CardDescription>포메이션 풀다운 변경 시 작전판이 바로 반영됩니다.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Tabs defaultValue="home" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="home">홈 팀</TabsTrigger>
-                  <TabsTrigger value="away">원정 팀</TabsTrigger>
-                </TabsList>
-                <TabsContent value="home" className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label>팀 이름</Label>
-                    <Input placeholder="예) A조" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>포메이션</Label>
-                    <Select defaultValue="4-4-2">
-                      <SelectTrigger>
-                        <SelectValue placeholder="선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="4-4-2">4-4-2</SelectItem>
-                        <SelectItem value="4-3-3">4-3-3</SelectItem>
-                        <SelectItem value="3-5-2">3-5-2</SelectItem>
-                        <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>선수 명단(초안)</Label>
-                    <Textarea
-                      placeholder={"예)\n1. 김철수(GK)\n2. 박민수(CB)\n..."}
-                      className="min-h-24"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      이후 이 입력은 선발/교체 구분, 등번호, 기본 포지션을 갖는 테이블로 바뀔 예정입니다.
-                    </p>
-                  </div>
-                </TabsContent>
-                <TabsContent value="away" className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label>팀 이름</Label>
-                    <Input placeholder="예) B조" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>포메이션</Label>
-                    <Select defaultValue="4-3-3">
-                      <SelectTrigger>
-                        <SelectValue placeholder="선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="4-4-2">4-4-2</SelectItem>
-                        <SelectItem value="4-3-3">4-3-3</SelectItem>
-                        <SelectItem value="3-5-2">3-5-2</SelectItem>
-                        <SelectItem value="4-2-3-1">4-2-3-1</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>선수 명단(초안)</Label>
-                    <Textarea placeholder="예) ..." className="min-h-24" />
-                  </div>
-                </TabsContent>
-              </Tabs>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <Badge variant="secondary">뼈대 상태</Badge>
-                <Button size="sm">저장(예정)</Button>
+              <div className="grid gap-3">
+                <div className="grid gap-2">
+                  <Label>홈팀 (대한민국) 포메이션</Label>
+                  <Select value={homeFormation} onValueChange={(v) => changeFormation("home", v as Formation)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{(["3-2-4-1","4-4-2","4-3-3","4-2-4"] as Formation[]).map((f)=><SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>원정팀 (레알 마드리드) 포메이션</Label>
+                  <Select value={awayFormation} onValueChange={(v) => changeFormation("away", v as Formation)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{(["4-2-4","4-3-3","4-4-2","3-2-4-1"] as Formation[]).map((f)=><SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>포지션 배치 모드</Label>
+                  <Select value={mode} onValueChange={(v) => setMode(v as Mode)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">자동 (기본)</SelectItem>
+                      <SelectItem value="manual">수동</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-base">쿼터 / 기록</CardTitle>
-              <CardDescription>
-                쿼터별 포지션 변경과 이벤트(득점/도움/카드 등)를 관리합니다.
-              </CardDescription>
+            <CardHeader>
+              <CardTitle className="text-base">선수 명단 (드래그/선택)</CardTitle>
+              <CardDescription>선수를 클릭 후 작전판 슬롯 클릭 또는 드래그앤드랍으로 배치/교체</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label>현재 쿼터</Label>
-                  <Select defaultValue="1">
-                    <SelectTrigger>
-                      <SelectValue placeholder="선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1쿼터</SelectItem>
-                      <SelectItem value="2">2쿼터</SelectItem>
-                      <SelectItem value="3">3쿼터</SelectItem>
-                      <SelectItem value="4">4쿼터</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>쿼터 시간(분)</Label>
-                  <Input inputMode="numeric" placeholder="25" />
+            <CardContent>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TeamKey)}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="home">홈팀</TabsTrigger>
+                  <TabsTrigger value="away">원정팀</TabsTrigger>
+                </TabsList>
+                <TabsContent value={activeTab} className="mt-3 space-y-2">
+                  {rosterFor.map((p) => (
+                    <button
+                      key={p.id}
+                      draggable
+                      onDragStart={() => setDragState({ playerId: p.id })}
+                      onClick={() => setSelectedPlayerId(p.id)}
+                      className={`flex w-full items-center justify-between rounded-md border px-2 py-1.5 text-left text-sm ${selectedPlayerId === p.id ? "border-primary bg-primary/10" : "border-border"} ${usedFor.has(p.id) ? "opacity-70" : ""}`}
+                    >
+                      <span>{p.number}번 {p.name}</span>
+                      <Badge variant="outline" className="text-[10px]">{usedFor.has(p.id) ? "배치됨" : "대기"}</Badge>
+                    </button>
+                  ))}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">현재쿼터 / 스코어</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                <Label>현재쿼터</Label>
+                <Select value={quarter} onValueChange={(v) => setQuarter(v ?? "2")}>
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1</SelectItem><SelectItem value="2">2</SelectItem><SelectItem value="3">3</SelectItem><SelectItem value="4">4</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="rounded-xl border bg-card/70 p-3">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-4xl font-extrabold leading-none tracking-tight text-emerald-500">
+                      {homeScore}
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        className="h-6 w-6 rounded border text-xs font-bold"
+                        onClick={() => setHomeScore((v) => v + 1)}
+                      >
+                        +
+                      </button>
+                      <button
+                        className="h-6 w-6 rounded border text-xs font-bold"
+                        onClick={() => setHomeScore((v) => Math.max(0, v - 1))}
+                      >
+                        -
+                      </button>
+                    </div>
+                  </div>
+                  <span className="text-lg font-semibold text-muted-foreground">
+                    vs
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-4xl font-extrabold leading-none tracking-tight text-sky-500">
+                      {awayScore}
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        className="h-6 w-6 rounded border text-xs font-bold"
+                        onClick={() => setAwayScore((v) => v + 1)}
+                      >
+                        +
+                      </button>
+                      <button
+                        className="h-6 w-6 rounded border text-xs font-bold"
+                        onClick={() => setAwayScore((v) => Math.max(0, v - 1))}
+                      >
+                        -
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  <span className="text-muted-foreground">현재 스코어</span>{" "}
-                  <span className="font-semibold">홈 0 : 0 원정</span>
-                </div>
-                <Button variant="outline" size="sm">
-                  이벤트 추가(예정)
-                </Button>
-              </div>
+              <Separator />
+              <p className="text-sm font-medium">전체 결과: 홈 0승 2패 | 원정 2승</p>
             </CardContent>
           </Card>
         </section>
 
-        {/* 우측: 경기장 / 포지션 / 기록 패널 */}
         <section className="flex flex-1 flex-col gap-4">
-          {/* 상단: 실제 비율에 가까운 경기장 */}
-          <Card className="relative flex-1">
-            <CardHeader className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">작전판</CardTitle>
-                  <Badge variant="secondary">실제 비율 뼈대</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline">
-                    포메이션 불러오기(예정)
-                  </Button>
-                  <Button size="sm">저장(예정)</Button>
-                </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">작전판</CardTitle>
+                <Badge variant="outline">포지션: {mode === "auto" ? "자동" : "수동"}</Badge>
               </div>
-              <CardDescription>
-                경기장 내부에 두 팀 포메이션이 표시됩니다. 이후 드래그로 포지션을 바꾸고 쿼터별로 저장할 수 있게 확장합니다.
-              </CardDescription>
+              <CardDescription>드래그해서 슬롯 위에 놓으면 선수 배치/교체가 됩니다.</CardDescription>
             </CardHeader>
             <CardContent>
-              {/* 105 x 68 비율을 의식한 컨테이너 (넓은 가로형) */}
-              <div className="relative mx-auto h-[320px] w-full max-w-[760px] rounded-[28px] border bg-gradient-to-br from-emerald-950/60 via-emerald-950/40 to-background p-3 pitch-grid-bg shadow-[0_0_40px_rgba(16,185,129,0.18)]">
-              {/* 중앙선 & 센터 서클 */}
-              <div className="pointer-events-none absolute inset-3">
-                <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-emerald-200/70" />
-                <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-200/60" />
-              </div>
-
-              {/* 페널티 박스 / 골대 영역 (양쪽) */}
-              <div className="pointer-events-none absolute inset-y-10 left-3 w-20 rounded-l-[26px] border border-emerald-200/60 border-r-0" />
-              <div className="pointer-events-none absolute inset-y-16 left-3 w-12 rounded-l-[24px] border border-emerald-200/60 border-r-0" />
-              <div className="pointer-events-none absolute inset-y-10 right-3 w-20 rounded-r-[26px] border border-emerald-200/60 border-l-0" />
-              <div className="pointer-events-none absolute inset-y-16 right-3 w-12 rounded-r-[24px] border border-emerald-200/60 border-l-0" />
-
-              {/* 예시 포메이션 아이콘 (홈 / 원정) */}
-              <div className="pointer-events-none absolute inset-5">
-                {/* 홈 팀 (왼쪽, 초록) */}
-                <div className="absolute inset-y-4 left-[18%] flex flex-col justify-between">
-                  <div className="flex justify-center gap-6">
-                    <PlayerDot color="emerald" />
-                  </div>
-                  <div className="flex justify-center gap-6">
-                    <PlayerDot color="emerald" />
-                    <PlayerDot color="emerald" />
-                    <PlayerDot color="emerald" />
-                  </div>
-                  <div className="flex justify-center gap-4">
-                    <PlayerDot color="emerald" />
-                    <PlayerDot color="emerald" />
-                  </div>
-                  <div className="flex justify-center">
-                    <PlayerDot color="emerald" />
-                  </div>
+              <div className="pitch-stadium-bg relative mx-auto h-[560px] w-full rounded-[28px] border border-emerald-200/35 p-3 pitch-grid-bg shadow-[0_0_90px_rgba(16,185,129,0.14)]">
+                <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
+                  <Badge className="bg-emerald-500/80 text-emerald-950">홈 {homeFormation}</Badge>
+                  <Badge className="bg-sky-400/80 text-sky-950">원정 {awayFormation}</Badge>
+                </div>
+                <div className="absolute right-4 top-4 z-10">
+                  <Badge variant="secondary">Q{quarter} | 홈 {homeScore} : {awayScore} 원정</Badge>
+                </div>
+                <div className="pointer-events-none absolute inset-3">
+                  <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-emerald-200/70" />
+                  <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-200/60" />
+                  <div className="absolute left-3 top-1/2 h-48 w-20 -translate-y-1/2 rounded-l-2xl border border-r-0 border-emerald-200/55" />
+                  <div className="absolute right-3 top-1/2 h-48 w-20 -translate-y-1/2 rounded-r-2xl border border-l-0 border-emerald-200/55" />
+                  <div className="absolute left-3 top-1/2 h-28 w-11 -translate-y-1/2 rounded-l-xl border border-r-0 border-emerald-200/55" />
+                  <div className="absolute right-3 top-1/2 h-28 w-11 -translate-y-1/2 rounded-r-xl border border-l-0 border-emerald-200/55" />
                 </div>
 
-                {/* 원정 팀 (오른쪽, 파랑) */}
-                <div className="absolute inset-y-4 right-[18%] flex flex-col justify-between">
-                  <div className="flex justify-center">
-                    <PlayerDot color="sky" />
-                  </div>
-                  <div className="flex justify-center gap-4">
-                    <PlayerDot color="sky" />
-                    <PlayerDot color="sky" />
-                  </div>
-                  <div className="flex justify-center gap-6">
-                    <PlayerDot color="sky" />
-                    <PlayerDot color="sky" />
-                    <PlayerDot color="sky" />
-                  </div>
-                  <div className="flex justify-center gap-6">
-                    <PlayerDot color="sky" />
-                  </div>
-                </div>
-              </div>
+                {[...homeSlots, ...awaySlots].map((slot) => {
+                  const team = slot.id.startsWith("home") ? "home" : "away";
+                  const lineup = team === "home" ? homeLineup : awayLineup;
+                  const playerId = lineup[slot.id];
+                  const player = playerId ? playerMap.get(playerId) : null;
+                  return (
+                    <button
+                      key={slot.id}
+                      style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border px-2 py-1 text-[10px] ${team === "home" ? "border-emerald-100 bg-emerald-400/80 text-emerald-950" : "border-sky-100 bg-sky-400/80 text-sky-950"}`}
+                      draggable={Boolean(player)}
+                      onDragStart={() => player && setDragState({ playerId: player.id, fromSlotId: slot.id })}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!dragState) return;
+                        assignToSlot(team, slot.id, dragState.playerId, dragState.fromSlotId);
+                        setDragState(null);
+                        setSelectedPlayerId(null);
+                      }}
+                      onClick={() => {
+                        if (!selectedPlayerId) return;
+                        assignToSlot(team, slot.id, selectedPlayerId);
+                        setSelectedPlayerId(null);
+                      }}
+                    >
+                      {player ? `${player.number} ${player.name}` : "빈 슬롯"}
+                    </button>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
 
-          {/* 하단: 스코어 & 기록 요약 뼈대 */}
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-            <Card>
-              <CardHeader className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base">쿼터별 포지션 / 교체 계획</CardTitle>
-                  <Badge variant="secondary">1쿼터</Badge>
-                </div>
-                <CardDescription>
-                  각 쿼터마다 포지션 변경, 교체, 득점/실점 메모 등을 기록할 예정입니다.
-                </CardDescription>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">작전판 사용 팁</CardTitle>
               </CardHeader>
-              <CardContent className="no-scrollbar overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[72px]">쿼터</TableHead>
-                      <TableHead className="w-[88px]">팀</TableHead>
-                      <TableHead>주요 변경 포지션</TableHead>
-                      <TableHead>메모</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>1Q</TableCell>
-                      <TableCell>홈</TableCell>
-                      <TableCell>LW → ST 교체 예정</TableCell>
-                      <TableCell>전방 압박 강화</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>1Q</TableCell>
-                      <TableCell>원정</TableCell>
-                      <TableCell>DM 추가 배치</TableCell>
-                      <TableCell>수비 안정 우선</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
+              <CardContent className="space-y-1 text-xs text-muted-foreground">
+                <p>• 선수 클릭 후 슬롯 클릭으로 빠르게 배치</p>
+                <p>• 슬롯 간 드래그로 즉시 교차 변경</p>
+                <p>• 포메이션 변경 시 기본 배치 자동 재정렬</p>
               </CardContent>
             </Card>
-
             <Card>
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-base">스코어보드 개요</CardTitle>
-                <CardDescription>
-                  회원별 팀/전략 저장, 경기 단위 기록을 단계적으로 추가할 수 있습니다.
-                </CardDescription>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">전체 결과</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">현재 스코어</span>
-                    <Badge>홈 0 : 0 원정</Badge>
-                  </div>
-                  <Button size="sm" variant="outline">
-                    기록 보기(예정)
-                  </Button>
-                </div>
-                <Separator />
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• 회원 가입/로그인 후 내 팀 템플릿 저장</li>
-                  <li>• 경기 생성 → 쿼터별 포지션 저장/불러오기</li>
-                  <li>• 득점/도움/카드/교체 등 이벤트 타임라인</li>
-                </ul>
+              <CardContent className="text-sm font-medium">
+                홈 0승 2패
+                <br />
+                원정 2승
               </CardContent>
             </Card>
           </div>
@@ -348,19 +339,4 @@ export default function Home() {
       </main>
     </div>
   );
-}
-
-type PlayerDotProps = {
-  color: "emerald" | "sky";
-};
-
-function PlayerDot({ color }: PlayerDotProps) {
-  const base =
-    "flex h-5 w-5 items-center justify-center rounded-full border text-[9px] font-semibold shadow-[0_0_10px_rgba(255,255,255,0.15)]";
-  const palette =
-    color === "emerald"
-      ? "bg-emerald-400/80 border-emerald-100 text-emerald-950"
-      : "bg-sky-400/80 border-sky-100 text-sky-950";
-
-  return <div className={`${base} ${palette}`}>●</div>;
 }
