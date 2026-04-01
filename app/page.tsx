@@ -279,7 +279,7 @@ export default function Home() {
     const resetPlayers = (prev: PlayerRow[]) =>
       prev.map((p) =>
         p.assigned && !includedPositions.has(p.assigned as PositionId)
-          ? { ...p, assigned: "" }
+          ? { ...p, assigned: "" as PlayerRow["assigned"] }
           : p
       );
 
