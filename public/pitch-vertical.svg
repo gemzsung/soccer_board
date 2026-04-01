@@ -1,0 +1,33 @@
+<svg width="900" height="1400" viewBox="0 0 900 1400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="1400" fill="#14532D"/>
+  <rect x="0" y="0" width="900" height="1400" fill="url(#grassBands)"/>
+  <rect x="70" y="70" width="760" height="1260" rx="20" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+  <line x1="70" y1="700" x2="830" y2="700" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+  <circle cx="450" cy="700" r="90" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+
+  <rect x="250" y="70" width="400" height="180" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+  <rect x="330" y="70" width="240" height="80" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+  <circle cx="450" cy="210" r="3.5" fill="#D1FAE5" fill-opacity="0.9"/>
+  <path d="M390 250C390 216.863 416.863 190 450 190C483.137 190 510 216.863 510 250" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+
+  <rect x="250" y="1150" width="400" height="180" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+  <rect x="330" y="1250" width="240" height="80" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+  <circle cx="450" cy="1190" r="3.5" fill="#D1FAE5" fill-opacity="0.9"/>
+  <path d="M390 1150C390 1183.14 416.863 1210 450 1210C483.137 1210 510 1183.14 510 1150" stroke="#D1FAE5" stroke-opacity="0.7" stroke-width="4"/>
+
+  <defs>
+    <linearGradient id="grassBands" x1="0" y1="0" x2="0" y2="1400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#166534"/>
+      <stop offset="0.1" stop-color="#15803D"/>
+      <stop offset="0.2" stop-color="#166534"/>
+      <stop offset="0.3" stop-color="#15803D"/>
+      <stop offset="0.4" stop-color="#166534"/>
+      <stop offset="0.5" stop-color="#15803D"/>
+      <stop offset="0.6" stop-color="#166534"/>
+      <stop offset="0.7" stop-color="#15803D"/>
+      <stop offset="0.8" stop-color="#166534"/>
+      <stop offset="0.9" stop-color="#15803D"/>
+      <stop offset="1" stop-color="#166534"/>
+    </linearGradient>
+  </defs>
+</svg>

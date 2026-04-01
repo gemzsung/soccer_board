@@ -79,6 +79,24 @@ body {
     linear-gradient(160deg, #14532d 0%, #166534 45%, #14532d 100%);
 }
 
+.pitch-vertical-home-bg {
+  background-image:
+    linear-gradient(180deg, rgba(16, 185, 129, 0.18), rgba(6, 78, 59, 0.25)),
+    url("/pitch-vertical.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.pitch-vertical-away-bg {
+  background-image:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.16), rgba(12, 74, 110, 0.26)),
+    url("/pitch-vertical.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
